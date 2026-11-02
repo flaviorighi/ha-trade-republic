@@ -320,7 +320,7 @@ class TradeRepublicClient:
             if (isin := pending.pop(sub_id, None)) is None:
                 continue
             await api.unsubscribe(sub_id)
-            name = payload.get("shortName") or payload.get("name") or isin
+            name = (payload.get("shortName") or payload.get("name") or isin).strip()
             exchanges = payload.get("exchangeIds") or []
             self._instruments[isin] = Instrument(
                 name=name,

@@ -55,6 +55,16 @@ async def test_sensors(hass: HomeAssistant, mock_client: MagicMock, mock_config_
     assert sap.attributes["gain"] is None
 
 
+async def test_states_are_rounded(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    odd = Position("US88160R1014", "Tesla", 0.123457, 300.0, 412.3456)
+    mock_client.fetch_portfolio.return_value = replace(PORTFOLIO, cash=0.1 + 0.2, positions={odd.isin: odd})
+    await _setup(hass, mock_config_entry)
+    assert hass.states.get("sensor.trade_republic_tesla").state == "50.91"
+    assert hass.states.get("sensor.trade_republic_cash").state == "0.3"
+
+
 async def test_positions_come_and_go(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:

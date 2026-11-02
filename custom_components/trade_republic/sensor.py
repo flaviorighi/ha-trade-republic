@@ -122,7 +122,7 @@ class TradeRepublicSensor(TradeRepublicEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        return self.entity_description.value_fn(self.coordinator.data)
+        return _round(self.entity_description.value_fn(self.coordinator.data), 2)
 
     @property
     def native_unit_of_measurement(self) -> str | None:
@@ -155,7 +155,7 @@ class PositionSensor(TradeRepublicEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        return position.value if (position := self._position) else None
+        return round(position.value, 2) if (position := self._position) else None
 
     @property
     def native_unit_of_measurement(self) -> str:

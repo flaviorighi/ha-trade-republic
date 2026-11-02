@@ -21,7 +21,8 @@ from custom_components.trade_republic.api import (
 from .conftest import PHONE
 
 INSTRUMENTS = {
-    "NL0010273215": {"shortName": "ASML", "exchangeIds": ["LSX"], "typeId": "stock"},
+    # Trade Republic sends some names with a trailing space.
+    "NL0010273215": {"shortName": "ASML ", "exchangeIds": ["LSX"], "typeId": "stock"},
     "DE0001102580": {"shortName": "Germany Feb. 2032", "exchangeIds": ["LSX"], "typeId": "bond"},
 }
 PRICES = {"NL0010273215": "101.5", "DE0001102580": "92.4"}
