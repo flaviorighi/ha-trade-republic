@@ -18,6 +18,8 @@ jobs:
       - uses: home-assistant/actions/hassfest@master
 
   hacs:
+    # The HACS action validates public repositories only.
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     steps:
       - uses: hacs/action@main

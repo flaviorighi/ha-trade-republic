@@ -10,7 +10,7 @@
   "requirements": [
     "pytr==0.4.10",
     "curl_cffi==0.16.3",
-    "babel==2.18.0",
+    "babel>=2.18.0",
     "humanfriendly==10.0",
     "pathvalidate==3.3.1",
     "pygments==2.21.0",
