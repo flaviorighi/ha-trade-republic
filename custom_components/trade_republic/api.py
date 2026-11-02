@@ -3,7 +3,8 @@
 pytr handles the login, the session cookies and the websocket protocol, which follow every
 change Trade Republic makes to its web app. pytr can also place orders, change savings plans
 and pay out cash: ReadOnlyApi refuses every request that is not in ALLOWED_SUBSCRIPTIONS, so
-none of that can be reached from this integration.
+none of that can be reached from this integration. Outside the websocket the integration only
+reads: the account settings (to resume the session) and the portfolio chart (HISTORY_PATH).
 
 Every public method of TradeRepublicClient blocks: call it from an executor thread.
 """
@@ -12,11 +13,13 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from datetime import UTC, datetime
 import hashlib
 from http.cookiejar import LoadError
 import logging
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 from pytr.api import TradeRepublicApi, TradeRepublicError
 from pytr.tickers import bond_pattern
@@ -35,6 +38,12 @@ _NO_PIN = "----"
 
 READ_TIMEOUT = 15
 UPDATE_TIMEOUT = 120
+
+# The curve shown in the Trade Republic app. Ranges go from the coarsest to the finest, so that
+# finer points replace coarser ones of the same hour; ranges Trade Republic does not know are
+# skipped.
+HISTORY_PATH = "/api-gateway/portfolio-chart/v2"
+HISTORY_RANGES = ("max", "5y", "1y", "1m")
 
 
 class TradeRepublicAuthError(Exception):
@@ -93,6 +102,16 @@ class Position:
         if not (invested := self.invested):
             return None
         return (self.value / invested - 1) * 100
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryPoint:
+    """One point of the portfolio curve in the Trade Republic app."""
+
+    time: datetime
+    net_value: float
+    # Performance in money since the purchases, when Trade Republic sends it.
+    gain: float | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -252,6 +271,31 @@ class TradeRepublicClient:
             # The session may have been refreshed: keep the new cookies for the next update.
             api.save_websession()
 
+    def fetch_history(self) -> list[HistoryPoint]:
+        """The portfolio curve of the Trade Republic app, one point per hour at most, oldest first."""
+        api = self._resume()
+        points: dict[datetime, HistoryPoint] = {}
+        try:
+            for history_range in HISTORY_RANGES:
+                query = urlencode({"secAccNo": api._sec_acc_no, "range": history_range})
+                response = api._web_request(f"{HISTORY_PATH}?{query}")
+                if response.status_code in (401, 403):
+                    raise TradeRepublicAuthError(f"HTTP {response.status_code}")
+                if response.status_code != 200:
+                    _LOGGER.debug("Portfolio history %s: HTTP %s", history_range, response.status_code)
+                    continue
+                found = _history_points(response.json())
+                _LOGGER.debug("Portfolio history %s: %d points", history_range, len(found))
+                for point in found:
+                    points[point.time.replace(minute=0, second=0, microsecond=0)] = point
+        except requests.RequestException as err:
+            raise _request_error(err) from err
+        except ValueError as err:
+            raise TradeRepublicConnectionError(f"unexpected portfolio history: {err!r}") from err
+        finally:
+            api.save_websession()
+        return [points[hour] for hour in sorted(points)]
+
     def _resume(self) -> ReadOnlyApi:
         if not self._cookies_file.exists():
             raise TradeRepublicAuthError("no saved session")
@@ -357,3 +401,19 @@ class TradeRepublicClient:
             else:
                 raise TradeRepublicConnectionError(f"no price for {isin}")
         return prices
+
+
+def _history_points(payload: Any) -> list[HistoryPoint]:
+    """Points with a timestamp and a value, from a list or from the first list in an object."""
+    if isinstance(payload, dict):
+        payload = next((value for value in payload.values() if isinstance(value, list)), [])
+    points = []
+    for raw in payload if isinstance(payload, list) else []:
+        try:
+            time = datetime.fromtimestamp(int(raw["timestamp"]) / 1000, UTC)
+            net_value = float(raw["netValue"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        gain = (raw.get("performance") or {}).get("absoluteValue")
+        points.append(HistoryPoint(time, net_value, float(gain) if gain not in (None, "") else None))
+    return points

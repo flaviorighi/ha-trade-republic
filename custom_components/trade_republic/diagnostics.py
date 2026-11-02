@@ -10,6 +10,7 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 
+from .const import CONF_HISTORY_IMPORTED
 from .coordinator import TradeRepublicConfigEntry
 
 
@@ -19,6 +20,7 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: TradeRe
     portfolio = coordinator.data
     return {
         "options": dict(entry.options),
+        "history_imported": entry.data.get(CONF_HISTORY_IMPORTED, False),
         "update_interval": str(coordinator.update_interval),
         "last_update_success": coordinator.last_update_success,
         "last_exception": repr(coordinator.last_exception) if coordinator.last_exception else None,

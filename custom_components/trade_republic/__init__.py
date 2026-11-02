@@ -11,8 +11,9 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
 from .api import TradeRepublicClient
-from .const import CONF_PHONE, DOMAIN
+from .const import CONF_HISTORY_IMPORTED, CONF_PHONE, DOMAIN
 from .coordinator import TradeRepublicConfigEntry, TradeRepublicCoordinator
+from .history import async_import_history
 
 PLATFORMS = [Platform.SENSOR]
 
@@ -32,6 +33,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: TradeRepublicConfigEntry
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    if not entry.data.get(CONF_HISTORY_IMPORTED) and "recorder" in hass.config.components:
+        entry.async_create_background_task(hass, async_import_history(hass, entry), "trade_republic_history")
     return True
 
 

@@ -6,7 +6,7 @@ Brings the portfolio of a [Trade Republic](https://traderepublic.com) account in
 
 ## Read-only by design
 
-- **It cannot trade or move money.** pytr can place orders, change savings plans and request payouts. This integration wraps pytr in a client that refuses every request outside a short list of read-only ones (portfolio, cash, instrument details, prices), and the tests check that every order, savings plan, alarm, watchlist and payout call is refused.
+- **It cannot trade or move money.** pytr can place orders, change savings plans and request payouts. This integration wraps pytr in a client that refuses every request outside a short list of read-only ones (portfolio, cash, instrument details, prices), and the tests check that every order, savings plan, alarm, watchlist and payout call is refused. Outside that connection it only reads the account settings and the portfolio chart.
 - **Your PIN is never stored.** It is sent once to Trade Republic to log in, and the login is confirmed in the Trade Republic app. Afterwards the integration only uses the session cookies. When the session expires, Home Assistant asks for the PIN again.
 - **The session is stored.** The cookies live in `.storage/trade_republic/` inside your Home Assistant configuration, so they are also in your backups. Like the session of a browser logged into Trade Republic, they give access to the account until they expire: protect your configuration and encrypt your backups.
 - **Dependencies are pinned** to exact versions, so the code that runs changes only with a release of this integration.
@@ -48,6 +48,12 @@ All amounts are in the account currency.
 A sensor appears when you buy a new security. When you sell all of it, its sensor becomes unavailable and is removed at the next restart.
 
 Prices are the last trade on the security's first exchange, usually Lang & Schwarz. Bonds are quoted in percent and converted. If a price does not arrive, the last known one is kept.
+
+## History
+
+Home Assistant keeps statistics only from the moment the integration is set up. On the first start the integration therefore reads, once, the portfolio chart shown in the Trade Republic app and imports it into the long-term statistics of the sensors it describes: securities value (or total value), invested and unrealized gain, up to the first statistic Home Assistant recorded itself. Statistic graphs then show the portfolio before the integration existed.
+
+A series is imported only if its latest point agrees with today's value of the sensor within 1% of the securities value, so a change in what Trade Republic sends cannot fill a sensor with the wrong numbers. There is no history for cash or for single securities.
 
 ## Options
 

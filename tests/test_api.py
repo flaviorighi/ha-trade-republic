@@ -2,18 +2,22 @@
 
 import asyncio
 from collections.abc import Callable
+from datetime import UTC, datetime
 import json
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
 from custom_components.trade_republic import api as api_module
 from custom_components.trade_republic.api import (
     ALLOWED_SUBSCRIPTIONS,
+    HistoryPoint,
     ReadOnlyApi,
     ReadOnlyError,
+    TradeRepublicAuthError,
     TradeRepublicClient,
     TradeRepublicConnectionError,
 )
@@ -174,3 +178,58 @@ def test_no_login_without_pin(tmp_path: Path) -> None:
     api = ReadOnlyApi(PHONE, tmp_path / "session.cookies", "en")
     with pytest.raises(ReadOnlyError):
         api.initiate_weblogin()
+
+
+class FakeResponse:
+    """What pytr's _web_request returns: status and JSON."""
+
+    def __init__(self, status: int, payload: Any = None) -> None:
+        self.status_code = status
+        self._payload = payload
+
+    def json(self) -> Any:
+        return self._payload
+
+
+def _ms(*args: int) -> int:
+    return int(datetime(*args, tzinfo=UTC).timestamp() * 1000)
+
+
+def test_reads_history(tmp_path: Path) -> None:
+    def web_request(path: str) -> FakeResponse:
+        query = parse_qs(urlparse(path).query)
+        assert query["secAccNo"] == ["1234567890"]
+        return {
+            "max": FakeResponse(
+                200,
+                [
+                    {"timestamp": _ms(2025, 1, 1, 9, 15), "netValue": "100", "performance": {"absoluteValue": "0"}},
+                    {"timestamp": _ms(2026, 10, 1, 9, 0), "netValue": "150", "performance": {"absoluteValue": "40"}},
+                ],
+            ),
+            "5y": FakeResponse(400),
+            "1y": FakeResponse(404),
+            # A finer range replaces the point of the same hour; broken points are skipped.
+            "1m": FakeResponse(
+                200, {"points": [{"timestamp": _ms(2026, 10, 1, 9, 30), "netValue": "151"}, {"timestamp": "x"}]}
+            ),
+        }[query["range"][0]]
+
+    api = make_api(tmp_path, FakeWebSocket({}))
+    api._web_request = web_request
+    with patch.object(TradeRepublicClient, "_resume", return_value=api):
+        points = TradeRepublicClient(PHONE, tmp_path / "s.cookies", "en").fetch_history()
+    assert points == [
+        HistoryPoint(datetime(2025, 1, 1, 9, 15, tzinfo=UTC), 100.0, 0.0),
+        HistoryPoint(datetime(2026, 10, 1, 9, 30, tzinfo=UTC), 151.0, None),
+    ]
+
+
+def test_history_with_expired_session(tmp_path: Path) -> None:
+    api = make_api(tmp_path, FakeWebSocket({}))
+    api._web_request = lambda path: FakeResponse(401)
+    with (
+        patch.object(TradeRepublicClient, "_resume", return_value=api),
+        pytest.raises(TradeRepublicAuthError),
+    ):
+        TradeRepublicClient(PHONE, tmp_path / "s.cookies", "en").fetch_history()

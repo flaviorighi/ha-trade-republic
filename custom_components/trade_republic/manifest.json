@@ -1,6 +1,7 @@
 {
   "domain": "trade_republic",
   "name": "Trade Republic",
+  "after_dependencies": ["recorder"],
   "codeowners": ["@flaviorighi"],
   "config_flow": true,
   "documentation": "https://github.com/flaviorighi/ha-trade-republic",

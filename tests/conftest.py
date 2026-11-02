@@ -30,6 +30,7 @@ def mock_client() -> Generator[MagicMock]:
     client.start_login.return_value = False
     client.account_id.return_value = ACCOUNT_ID
     client.fetch_portfolio.return_value = PORTFOLIO
+    client.fetch_history.return_value = []
     with (
         patch("custom_components.trade_republic.create_client", return_value=client),
         patch("custom_components.trade_republic.config_flow.create_client", return_value=client),
