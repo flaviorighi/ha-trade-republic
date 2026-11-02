@@ -68,6 +68,7 @@ async def test_imports_matching_series(
         HistoryPoint(hour + timedelta(minutes=5), 1400.0, 600.0),
     ]
     await _setup(hass, mock_config_entry)
+    mock_client.fetch_history.assert_called_once_with("EUR")
 
     statistics = await _statistics(hass, hour - timedelta(days=3))
     # Sums end where Home Assistant's own statistics will start, at today's value.
@@ -121,7 +122,12 @@ async def test_stops_at_existing_statistics(
 
 
 async def test_imports_once(recorder_mock: Recorder, hass: HomeAssistant, mock_client: MagicMock) -> None:
-    entry = MockConfigEntry(domain=DOMAIN, data={CONF_PHONE: PHONE, CONF_HISTORY_IMPORTED: True}, unique_id=ACCOUNT_ID)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_PHONE: PHONE, CONF_HISTORY_IMPORTED: True},
+        unique_id=ACCOUNT_ID,
+        minor_version=2,
+    )
     await _setup(hass, entry)
     mock_client.fetch_history.assert_not_called()
 
@@ -132,3 +138,16 @@ async def test_retries_after_a_failure(
     mock_client.fetch_history.side_effect = TradeRepublicConnectionError("down")
     await _setup(hass, mock_config_entry)
     assert CONF_HISTORY_IMPORTED not in mock_config_entry.data
+
+
+async def test_retries_when_nothing_matches(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    hour,
+) -> None:
+    mock_client.fetch_history.return_value = [HistoryPoint(hour - timedelta(days=1), 9000.0, None)]
+    await _setup(hass, mock_config_entry)
+    assert CONF_HISTORY_IMPORTED not in mock_config_entry.data
+    assert _rows(await _statistics(hass, hour - timedelta(days=3)), SECURITIES) == []

@@ -38,6 +38,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: TradeRepublicConfigEntry
     return True
 
 
+async def async_migrate_entry(hass: HomeAssistant, entry: TradeRepublicConfigEntry) -> bool:
+    """Bring older config entries up to date."""
+    if entry.version == 1 and entry.minor_version < 2:
+        # Before 1.2 the history was marked as imported even when Trade Republic sent none.
+        data = {key: value for key, value in entry.data.items() if key != CONF_HISTORY_IMPORTED}
+        hass.config_entries.async_update_entry(entry, data=data, minor_version=2)
+    return True
+
+
 async def async_unload_entry(hass: HomeAssistant, entry: TradeRepublicConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

@@ -51,9 +51,12 @@ Prices are the last trade on the security's first exchange, usually Lang & Schwa
 
 ## History
 
-Home Assistant keeps statistics only from the moment the integration is set up. On the first start the integration therefore reads, once, the portfolio chart shown in the Trade Republic app and imports it into the long-term statistics of the sensors it describes: securities value (or total value), invested and unrealized gain, up to the first statistic Home Assistant recorded itself. Statistic graphs then show the portfolio before the integration existed.
+Home Assistant keeps statistics only from the moment the integration is set up. On the first start the integration therefore reads, once, the portfolio chart shown in the Trade Republic app and imports it into the long-term statistics of the sensors it describes, up to the first statistic Home Assistant recorded itself. Statistic graphs then show the portfolio before the integration existed.
 
-A series is imported only if its latest point agrees with today's value of the sensor within 1% of the securities value, so a change in what Trade Republic sends cannot fill a sensor with the wrong numbers. There is no history for cash or for single securities.
+- **Securities value**: one point a day for the last year, sparser points before.
+- **Invested** and **unrealized gain**: only from the sparse points that go back to the first purchase, because Trade Republic counts the performance of each chart from its own start.
+
+A series is imported only if its latest point agrees with today's value of the sensor within 1% of the securities value, so a change in what Trade Republic sends cannot fill a sensor with the wrong numbers. When nothing can be imported, the integration logs a warning and tries again at the next start. There is no history for cash or for single securities.
 
 ## Options
 

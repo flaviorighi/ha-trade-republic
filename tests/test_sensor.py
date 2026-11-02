@@ -12,13 +12,13 @@ from custom_components.trade_republic.api import (
     TradeRepublicAuthError,
     TradeRepublicConnectionError,
 )
-from custom_components.trade_republic.const import DOMAIN
+from custom_components.trade_republic.const import CONF_HISTORY_IMPORTED, CONF_PHONE, DOMAIN
 from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntryState
 from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
-from .conftest import ASML, PORTFOLIO, SAP
+from .conftest import ACCOUNT_ID, ASML, PHONE, PORTFOLIO, SAP
 
 
 async def _setup(hass: HomeAssistant, entry: MockConfigEntry) -> None:
@@ -138,3 +138,17 @@ async def test_diagnostics_reveal_nothing_personal(
     text = str(diagnostics)
     for secret in (ASML.isin, SAP.name, "2400", "+39"):
         assert secret not in text
+
+
+async def test_migration_forgets_the_empty_history_import(hass: HomeAssistant, mock_client: MagicMock) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_PHONE: PHONE, CONF_HISTORY_IMPORTED: True},
+        unique_id=ACCOUNT_ID,
+        version=1,
+        minor_version=1,
+    )
+    await _setup(hass, entry)
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.minor_version == 2
+    assert entry.data == {CONF_PHONE: PHONE}

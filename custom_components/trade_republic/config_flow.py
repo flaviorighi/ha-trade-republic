@@ -54,6 +54,7 @@ class TradeRepublicConfigFlow(ConfigFlow, domain=DOMAIN):
     """Log in with phone number, PIN and a confirmation in the Trade Republic app."""
 
     VERSION = 1
+    MINOR_VERSION = 2
 
     def __init__(self) -> None:
         self._client: TradeRepublicClient | None = None

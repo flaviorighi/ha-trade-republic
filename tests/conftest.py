@@ -41,4 +41,6 @@ def mock_client() -> Generator[MagicMock]:
 @pytest.fixture
 def mock_config_entry() -> MockConfigEntry:
     """A configured account."""
-    return MockConfigEntry(domain=DOMAIN, title="Trade Republic", data={CONF_PHONE: PHONE}, unique_id=ACCOUNT_ID)
+    return MockConfigEntry(
+        domain=DOMAIN, title="Trade Republic", data={CONF_PHONE: PHONE}, unique_id=ACCOUNT_ID, minor_version=2
+    )

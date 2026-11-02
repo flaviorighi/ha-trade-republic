@@ -98,24 +98,24 @@ async def _async_import(
 
 
 async def async_import_history(hass: HomeAssistant, entry: TradeRepublicConfigEntry) -> None:
-    """Import the curve once per account; a failure is retried at the next start."""
+    """Import the curve once per account; without a usable curve, try again at the next start."""
     coordinator = entry.runtime_data
+    currency = coordinator.data.currency
     try:
-        points = await hass.async_add_executor_job(coordinator.client.fetch_history)
+        points = await hass.async_add_executor_job(coordinator.client.fetch_history, currency)
     except (TradeRepublicAuthError, TradeRepublicConnectionError) as err:
         _LOGGER.warning("Could not read the portfolio history, trying again at the next start: %s", err)
         return
+    if not points or not (series := _series(coordinator.data, points)):
+        _LOGGER.warning(
+            "The portfolio history of Trade Republic does not match today's values, trying again at the next start"
+        )
+        return
 
     imported: dict[str, int] = {}
-    if points:
-        registry = er.async_get(hass)
-        for key, (today, values) in _series(coordinator.data, points).items():
-            if entity_id := registry.async_get_entity_id(Platform.SENSOR, DOMAIN, f"{entry.unique_id}_{key}"):
-                imported[entity_id] = await _async_import(hass, entity_id, coordinator.data.currency, today, values)
-    _LOGGER.info(
-        "Portfolio history: %d points from Trade Republic%s, imported %s",
-        len(points),
-        f" since {points[0].time.date()}" if points else "",
-        imported or "nothing",
-    )
+    registry = er.async_get(hass)
+    for key, (today, values) in series.items():
+        if entity_id := registry.async_get_entity_id(Platform.SENSOR, DOMAIN, f"{entry.unique_id}_{key}"):
+            imported[entity_id] = await _async_import(hass, entity_id, currency, today, values)
+    _LOGGER.info("Portfolio history since %s imported: %s", points[0].time.date(), imported)
     hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_HISTORY_IMPORTED: True})

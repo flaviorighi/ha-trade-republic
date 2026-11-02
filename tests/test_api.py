@@ -195,41 +195,66 @@ def _ms(*args: int) -> int:
     return int(datetime(*args, tzinfo=UTC).timestamp() * 1000)
 
 
-def test_reads_history(tmp_path: Path) -> None:
-    def web_request(path: str) -> FakeResponse:
-        query = parse_qs(urlparse(path).query)
-        assert query["secAccNo"] == ["1234567890"]
-        return {
-            "max": FakeResponse(
-                200,
-                [
-                    {"timestamp": _ms(2025, 1, 1, 9, 15), "netValue": "100", "performance": {"absoluteValue": "0"}},
-                    {"timestamp": _ms(2026, 10, 1, 9, 0), "netValue": "150", "performance": {"absoluteValue": "40"}},
-                ],
-            ),
-            "5y": FakeResponse(400),
-            "1y": FakeResponse(404),
-            # A finer range replaces the point of the same hour; broken points are skipped.
-            "1m": FakeResponse(
-                200, {"points": [{"timestamp": _ms(2026, 10, 1, 9, 30), "netValue": "151"}, {"timestamp": "x"}]}
-            ),
-        }[query["range"][0]]
+def _point(*args: int, value: str, gain: str | None = None) -> dict:
+    point = {"timestamp": _ms(*args), "netValue": value}
+    if gain is not None:
+        point["performance"] = {"absoluteValue": gain, "relativeValue": "0"}
+    return point
 
+
+def _fetch_history(tmp_path: Path, web_request) -> list[HistoryPoint]:
     api = make_api(tmp_path, FakeWebSocket({}))
     api._web_request = web_request
     with patch.object(TradeRepublicClient, "_resume", return_value=api):
-        points = TradeRepublicClient(PHONE, tmp_path / "s.cookies", "en").fetch_history()
-    assert points == [
+        return TradeRepublicClient(PHONE, tmp_path / "s.cookies", "en").fetch_history("EUR")
+
+
+def test_reads_history(tmp_path: Path) -> None:
+    def web_request(path: str) -> FakeResponse:
+        url = urlparse(path)
+        query = parse_qs(url.query)
+        assert url.path == "/api-gateway/portfolio-chart/v2/chart"
+        assert query["secAccNo"] == ["1234567890"]
+        assert query["currency"] == ["EUR"]
+        return {
+            "max": FakeResponse(
+                200,
+                {
+                    "points": [
+                        # The curve is zero until the first purchase.
+                        _point(2024, 5, 1, 0, 0, value="0.00", gain="0"),
+                        _point(2025, 1, 1, 9, 15, value="100", gain="0"),
+                        _point(2026, 10, 1, 9, 0, value="150", gain="40"),
+                    ],
+                    "openingTime": 0,
+                },
+            ),
+            # Its performance counts from a year ago: it replaces the value of the same hour
+            # but not the gain since the first purchase. Broken points are skipped.
+            "1y": FakeResponse(
+                200,
+                {
+                    "points": [
+                        _point(2026, 10, 1, 9, 30, value="151", gain="5"),
+                        _point(2026, 10, 2, 9, 30, value="152", gain="6"),
+                        {"timestamp": "x"},
+                    ]
+                },
+            ),
+        }[query["range"][0]]
+
+    assert _fetch_history(tmp_path, web_request) == [
         HistoryPoint(datetime(2025, 1, 1, 9, 15, tzinfo=UTC), 100.0, 0.0),
-        HistoryPoint(datetime(2026, 10, 1, 9, 30, tzinfo=UTC), 151.0, None),
+        HistoryPoint(datetime(2026, 10, 1, 9, 30, tzinfo=UTC), 151.0, 40.0),
+        HistoryPoint(datetime(2026, 10, 2, 9, 30, tzinfo=UTC), 152.0, None),
     ]
 
 
+def test_no_history(tmp_path: Path) -> None:
+    with pytest.raises(TradeRepublicConnectionError, match="max: HTTP 404; 1y: HTTP 400"):
+        _fetch_history(tmp_path, lambda path: FakeResponse(404 if "range=max" in path else 400))
+
+
 def test_history_with_expired_session(tmp_path: Path) -> None:
-    api = make_api(tmp_path, FakeWebSocket({}))
-    api._web_request = lambda path: FakeResponse(401)
-    with (
-        patch.object(TradeRepublicClient, "_resume", return_value=api),
-        pytest.raises(TradeRepublicAuthError),
-    ):
-        TradeRepublicClient(PHONE, tmp_path / "s.cookies", "en").fetch_history()
+    with pytest.raises(TradeRepublicAuthError):
+        _fetch_history(tmp_path, lambda path: FakeResponse(401))

@@ -39,11 +39,14 @@ _NO_PIN = "----"
 READ_TIMEOUT = 15
 UPDATE_TIMEOUT = 120
 
-# The curve shown in the Trade Republic app. Ranges go from the coarsest to the finest, so that
-# finer points replace coarser ones of the same hour; ranges Trade Republic does not know are
-# skipped.
-HISTORY_PATH = "/api-gateway/portfolio-chart/v2"
-HISTORY_RANGES = ("max", "5y", "1y", "1m")
+# The curve shown in the Trade Republic app: the securities, without cash. "max" goes back to
+# the first purchase with sparse points, "1y" has one point a day; finer points replace coarser
+# ones of the same hour. Other ranges answer HTTP 400 (seen on 3y and 6m in 2026).
+HISTORY_PATH = "/api-gateway/portfolio-chart/v2/chart"
+HISTORY_RANGES = ("max", "1y")
+# The performance of each point counts from the start of its range: only this one starts at the
+# first purchase, so only its points say how much was invested.
+HISTORY_SINCE_START = "max"
 
 
 class TradeRepublicAuthError(Exception):
@@ -110,7 +113,7 @@ class HistoryPoint:
 
     time: datetime
     net_value: float
-    # Performance in money since the purchases, when Trade Republic sends it.
+    # Performance in money since the first purchase, when known.
     gain: float | None
 
 
@@ -271,30 +274,42 @@ class TradeRepublicClient:
             # The session may have been refreshed: keep the new cookies for the next update.
             api.save_websession()
 
-    def fetch_history(self) -> list[HistoryPoint]:
+    def fetch_history(self, currency: str) -> list[HistoryPoint]:
         """The portfolio curve of the Trade Republic app, one point per hour at most, oldest first."""
         api = self._resume()
         points: dict[datetime, HistoryPoint] = {}
+        statuses = []
         try:
             for history_range in HISTORY_RANGES:
-                query = urlencode({"secAccNo": api._sec_acc_no, "range": history_range})
+                query = urlencode({"secAccNo": api._sec_acc_no, "range": history_range, "currency": currency})
                 response = api._web_request(f"{HISTORY_PATH}?{query}")
+                statuses.append(f"{history_range}: HTTP {response.status_code}")
                 if response.status_code in (401, 403):
                     raise TradeRepublicAuthError(f"HTTP {response.status_code}")
                 if response.status_code != 200:
-                    _LOGGER.debug("Portfolio history %s: HTTP %s", history_range, response.status_code)
                     continue
                 found = _history_points(response.json())
-                _LOGGER.debug("Portfolio history %s: %d points", history_range, len(found))
+                statuses[-1] += f", {len(found)} points"
                 for point in found:
-                    points[point.time.replace(minute=0, second=0, microsecond=0)] = point
+                    hour = point.time.replace(minute=0, second=0, microsecond=0)
+                    gain = point.gain if history_range == HISTORY_SINCE_START else None
+                    if gain is None and hour in points:
+                        gain = points[hour].gain
+                    points[hour] = HistoryPoint(point.time, point.net_value, gain)
         except requests.RequestException as err:
             raise _request_error(err) from err
         except ValueError as err:
             raise TradeRepublicConnectionError(f"unexpected portfolio history: {err!r}") from err
         finally:
             api.save_websession()
-        return [points[hour] for hour in sorted(points)]
+        _LOGGER.debug("Portfolio history: %s", "; ".join(statuses))
+        if not points:
+            raise TradeRepublicConnectionError(f"no portfolio history ({'; '.join(statuses)})")
+        history = [points[hour] for hour in sorted(points)]
+        # The curve starts at zero until the first purchase.
+        while history and history[0].net_value == 0:
+            history.pop(0)
+        return history
 
     def _resume(self) -> ReadOnlyApi:
         if not self._cookies_file.exists():
