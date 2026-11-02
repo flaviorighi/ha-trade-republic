@@ -1,0 +1,93 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Trade Republic",
+        "description": "Sign in with the phone number and PIN of your Trade Republic account, then confirm the login in the Trade Republic app.\n\nThe PIN is used only for this login and is not stored. The integration only reads your portfolio: it cannot place orders or move money.",
+        "data": {
+          "phone": "Phone number",
+          "pin": "PIN"
+        },
+        "data_description": {
+          "phone": "In international format, for example +49 151 23456789.",
+          "pin": "The 4-digit PIN you use in the Trade Republic app."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Sign in again",
+        "description": "The Trade Republic session for {phone} has expired. Enter your PIN, then confirm the login in the Trade Republic app.",
+        "data": {
+          "pin": "PIN"
+        }
+      },
+      "authenticator": {
+        "title": "Authenticator code",
+        "description": "Enter the code shown by your authenticator app.",
+        "data": {
+          "code": "Code"
+        }
+      }
+    },
+    "progress": {
+      "confirm_in_app": "Open the Trade Republic app on your phone and confirm the login. This page continues on its own once you have confirmed; the request expires after about 2 minutes."
+    },
+    "error": {
+      "invalid_phone": "Enter the phone number in international format, starting with + and the country code.",
+      "invalid_auth": "Trade Republic refused the phone number or PIN.",
+      "invalid_code": "The code was not accepted. Enter your PIN to start again.",
+      "not_confirmed": "The login was not confirmed in the app in time, or it was rejected. Try again.",
+      "too_many_attempts": "Too many attempts. Wait a few minutes before trying again.",
+      "cannot_connect": "Could not reach Trade Republic.",
+      "unknown": "Unexpected error, see the logs."
+    },
+    "abort": {
+      "already_configured": "This account is already configured.",
+      "reauth_successful": "Signed in again.",
+      "wrong_account": "You signed in to a different Trade Republic account.",
+      "cannot_connect": "Could not reach Trade Republic."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "data": {
+          "scan_interval": "Update interval"
+        },
+        "data_description": {
+          "scan_interval": "How often the portfolio is read, in minutes. Prices move only while the markets are open."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "total_value": {
+        "name": "Total value"
+      },
+      "securities_value": {
+        "name": "Securities value"
+      },
+      "cash": {
+        "name": "Cash"
+      },
+      "invested": {
+        "name": "Invested"
+      },
+      "gain": {
+        "name": "Unrealized gain"
+      },
+      "gain_percent": {
+        "name": "Unrealized return"
+      }
+    }
+  },
+  "exceptions": {
+    "session_expired": {
+      "message": "The Trade Republic session has expired. Sign in again."
+    },
+    "update_failed": {
+      "message": "Could not read the portfolio: {error}"
+    }
+  }
+}

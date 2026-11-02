@@ -1,0 +1,21 @@
+{
+  "domain": "trade_republic",
+  "name": "Trade Republic",
+  "codeowners": ["@flaviorighi"],
+  "config_flow": true,
+  "documentation": "https://github.com/flaviorighi/ha-trade-republic",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/flaviorighi/ha-trade-republic/issues",
+  "requirements": [
+    "pytr==0.4.10",
+    "curl_cffi==0.16.3",
+    "babel==2.18.0",
+    "humanfriendly==10.0",
+    "pathvalidate==3.3.1",
+    "pygments==2.21.0",
+    "requests-futures==1.1.0",
+    "shtab==1.12.1"
+  ],
+  "version": "0.1.0"
+}

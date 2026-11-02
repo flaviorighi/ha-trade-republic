@@ -1,0 +1,93 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Trade Republic",
+        "description": "Accedi con il numero di telefono e il PIN del tuo conto Trade Republic, poi conferma l'accesso nell'app Trade Republic.\n\nIl PIN serve solo per questo accesso e non viene salvato. L'integrazione legge soltanto il portafoglio: non può fare ordini né spostare denaro.",
+        "data": {
+          "phone": "Numero di telefono",
+          "pin": "PIN"
+        },
+        "data_description": {
+          "phone": "In formato internazionale, per esempio +39 333 1234567.",
+          "pin": "Il PIN di 4 cifre che usi nell'app Trade Republic."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Accedi di nuovo",
+        "description": "La sessione Trade Republic di {phone} è scaduta. Inserisci il PIN, poi conferma l'accesso nell'app Trade Republic.",
+        "data": {
+          "pin": "PIN"
+        }
+      },
+      "authenticator": {
+        "title": "Codice di autenticazione",
+        "description": "Inserisci il codice mostrato dalla tua app di autenticazione.",
+        "data": {
+          "code": "Codice"
+        }
+      }
+    },
+    "progress": {
+      "confirm_in_app": "Apri l'app Trade Republic sul telefono e conferma l'accesso. La pagina prosegue da sola appena confermi; la richiesta scade dopo circa 2 minuti."
+    },
+    "error": {
+      "invalid_phone": "Inserisci il numero in formato internazionale, con + e il prefisso del paese.",
+      "invalid_auth": "Trade Republic ha rifiutato il numero o il PIN.",
+      "invalid_code": "Il codice non è stato accettato. Inserisci di nuovo il PIN per ricominciare.",
+      "not_confirmed": "L'accesso non è stato confermato nell'app in tempo, oppure è stato rifiutato. Riprova.",
+      "too_many_attempts": "Troppi tentativi. Aspetta qualche minuto prima di riprovare.",
+      "cannot_connect": "Impossibile raggiungere Trade Republic.",
+      "unknown": "Errore imprevisto, vedi i log."
+    },
+    "abort": {
+      "already_configured": "Questo conto è già configurato.",
+      "reauth_successful": "Accesso eseguito di nuovo.",
+      "wrong_account": "Hai effettuato l'accesso a un altro conto Trade Republic.",
+      "cannot_connect": "Impossibile raggiungere Trade Republic."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opzioni",
+        "data": {
+          "scan_interval": "Intervallo di aggiornamento"
+        },
+        "data_description": {
+          "scan_interval": "Ogni quanti minuti leggere il portafoglio. I prezzi cambiano solo con i mercati aperti."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "total_value": {
+        "name": "Valore totale"
+      },
+      "securities_value": {
+        "name": "Valore dei titoli"
+      },
+      "cash": {
+        "name": "Liquidità"
+      },
+      "invested": {
+        "name": "Capitale investito"
+      },
+      "gain": {
+        "name": "Guadagno non realizzato"
+      },
+      "gain_percent": {
+        "name": "Rendimento non realizzato"
+      }
+    }
+  },
+  "exceptions": {
+    "session_expired": {
+      "message": "La sessione Trade Republic è scaduta. Accedi di nuovo."
+    },
+    "update_failed": {
+      "message": "Impossibile leggere il portafoglio: {error}"
+    }
+  }
+}

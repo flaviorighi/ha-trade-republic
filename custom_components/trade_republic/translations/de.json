@@ -1,0 +1,93 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Trade Republic",
+        "description": "Melde dich mit der Telefonnummer und der PIN deines Trade-Republic-Kontos an und bestätige die Anmeldung anschließend in der Trade-Republic-App.\n\nDie PIN wird nur für diese Anmeldung verwendet und nicht gespeichert. Die Integration liest nur dein Depot: Sie kann keine Orders erteilen und kein Geld bewegen.",
+        "data": {
+          "phone": "Telefonnummer",
+          "pin": "PIN"
+        },
+        "data_description": {
+          "phone": "Im internationalen Format, zum Beispiel +49 151 23456789.",
+          "pin": "Die vierstellige PIN, die du in der Trade-Republic-App verwendest."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Erneut anmelden",
+        "description": "Die Trade-Republic-Sitzung für {phone} ist abgelaufen. Gib deine PIN ein und bestätige die Anmeldung dann in der Trade-Republic-App.",
+        "data": {
+          "pin": "PIN"
+        }
+      },
+      "authenticator": {
+        "title": "Authenticator-Code",
+        "description": "Gib den Code aus deiner Authenticator-App ein.",
+        "data": {
+          "code": "Code"
+        }
+      }
+    },
+    "progress": {
+      "confirm_in_app": "Öffne die Trade-Republic-App auf deinem Telefon und bestätige die Anmeldung. Diese Seite geht nach der Bestätigung von selbst weiter; die Anfrage läuft nach etwa 2 Minuten ab."
+    },
+    "error": {
+      "invalid_phone": "Gib die Telefonnummer im internationalen Format ein, mit + und Ländervorwahl.",
+      "invalid_auth": "Trade Republic hat Telefonnummer oder PIN abgelehnt.",
+      "invalid_code": "Der Code wurde nicht akzeptiert. Gib deine PIN ein, um neu zu beginnen.",
+      "not_confirmed": "Die Anmeldung wurde nicht rechtzeitig in der App bestätigt oder wurde abgelehnt. Versuche es erneut.",
+      "too_many_attempts": "Zu viele Versuche. Warte einige Minuten, bevor du es erneut versuchst.",
+      "cannot_connect": "Trade Republic ist nicht erreichbar.",
+      "unknown": "Unerwarteter Fehler, siehe Protokoll."
+    },
+    "abort": {
+      "already_configured": "Dieses Konto ist bereits eingerichtet.",
+      "reauth_successful": "Erneut angemeldet.",
+      "wrong_account": "Du hast dich bei einem anderen Trade-Republic-Konto angemeldet.",
+      "cannot_connect": "Trade Republic ist nicht erreichbar."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Optionen",
+        "data": {
+          "scan_interval": "Aktualisierungsintervall"
+        },
+        "data_description": {
+          "scan_interval": "Wie oft das Depot gelesen wird, in Minuten. Kurse ändern sich nur, während die Börsen geöffnet sind."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "total_value": {
+        "name": "Gesamtwert"
+      },
+      "securities_value": {
+        "name": "Depotwert"
+      },
+      "cash": {
+        "name": "Guthaben"
+      },
+      "invested": {
+        "name": "Investiert"
+      },
+      "gain": {
+        "name": "Nicht realisierter Gewinn"
+      },
+      "gain_percent": {
+        "name": "Nicht realisierte Rendite"
+      }
+    }
+  },
+  "exceptions": {
+    "session_expired": {
+      "message": "Die Trade-Republic-Sitzung ist abgelaufen. Melde dich erneut an."
+    },
+    "update_failed": {
+      "message": "Das Depot konnte nicht gelesen werden: {error}"
+    }
+  }
+}

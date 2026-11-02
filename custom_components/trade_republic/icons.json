@@ -1,0 +1,27 @@
+{
+  "entity": {
+    "sensor": {
+      "total_value": {
+        "default": "mdi:wallet"
+      },
+      "securities_value": {
+        "default": "mdi:chart-line"
+      },
+      "cash": {
+        "default": "mdi:cash"
+      },
+      "invested": {
+        "default": "mdi:piggy-bank"
+      },
+      "gain": {
+        "default": "mdi:trending-up"
+      },
+      "gain_percent": {
+        "default": "mdi:percent"
+      },
+      "position": {
+        "default": "mdi:finance"
+      }
+    }
+  }
+}
