@@ -6,7 +6,7 @@ Brings the portfolio of a [Trade Republic](https://traderepublic.com) account in
 
 *A dashboard built from the sensors, with made-up data. The cards are [Mushroom](https://github.com/piitaya/lovelace-mushroom), [ApexCharts](https://github.com/RomRider/apexcharts-card), [card-mod](https://github.com/thomasloven/lovelace-card-mod) and [auto-entities](https://github.com/thomasloven/lovelace-auto-entities): they are not part of the integration.*
 
-> **Unofficial.** This project is not affiliated with Trade Republic Bank GmbH. It uses the same private API as Trade Republic's web app, through [pytr](https://github.com/pytr-org/pytr). Trade Republic can change or block that API at any time, and the integration then stops working until it is updated.
+> **Unofficial.** This project is not affiliated with Trade Republic Bank GmbH. It uses the same private API as Trade Republic's web app, through [pytr](https://github.com/pytr-org/pytr). Trade Republic can change or block that API at any time, and the integration then stops working until it is updated. Trade Republic is a trademark of Trade Republic Bank GmbH, used here only to name the service the integration reads.
 
 ## Read-only by design
 
