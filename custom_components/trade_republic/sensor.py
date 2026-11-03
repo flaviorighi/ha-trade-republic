@@ -125,7 +125,6 @@ def _next_dividend_attributes(portfolio: Portfolio) -> dict[str, Any]:
     first = upcoming[0] if upcoming else {}
     return {
         "name": first.get("name"),
-        "isin": first.get("isin"),
         "ex_date": first.get("ex_date"),
         "payment_date": first.get("payment_date"),
         "per_share": first.get("per_share"),

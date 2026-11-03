@@ -99,6 +99,8 @@ async def test_expected(
     assert next_dividend["name"] == "ASML"
     assert (next_dividend["ex_date"], next_dividend["payment_date"]) == ("2026-11-10", "2026-11-20")
     assert len(next_dividend["upcoming"]) == 1
+    # Lists of securities pick their sensors by isin: this one is not a security.
+    assert "isin" not in next_dividend
 
     # 10 ASML at 2.00 a year and 2 SAP at 2.50.
     assert _value(hass, "sensor.trade_republic_expected_dividends_per_year") == 25.0
