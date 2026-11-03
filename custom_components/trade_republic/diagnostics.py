@@ -30,5 +30,8 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: TradeRe
             "currency": portfolio.currency,
             "positions": len(portfolio.positions),
             "positions_without_average_price": sum(1 for p in portfolio.positions.values() if p.average_price is None),
+            "dividend_payments": None if portfolio.dividends is None else len(portfolio.dividends),
+            "interest_payments": None if portfolio.interest is None else len(portfolio.interest),
+            "positions_with_dividend_outlook": len(portfolio.outlook),
         },
     }

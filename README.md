@@ -1,12 +1,12 @@
 # Trade Republic for Home Assistant
 
-Brings the portfolio of a [Trade Republic](https://traderepublic.com) account into Home Assistant: total value, cash, invested capital, unrealized gain, and one sensor for every security you hold.
+Brings the portfolio of a [Trade Republic](https://traderepublic.com) account into Home Assistant: total value, cash, invested capital, unrealized gain, dividends and interest received, the dividends to come, and one sensor for every security you hold.
 
 > **Unofficial.** This project is not affiliated with Trade Republic Bank GmbH. It uses the same private API as Trade Republic's web app, through [pytr](https://github.com/pytr-org/pytr). Trade Republic can change or block that API at any time, and the integration then stops working until it is updated.
 
 ## Read-only by design
 
-- **It cannot trade or move money.** pytr can place orders, change savings plans and request payouts. This integration wraps pytr in a client that refuses every request outside a short list of read-only ones (portfolio, cash, instrument details, prices), and the tests check that every order, savings plan, alarm, watchlist and payout call is refused. Outside that connection it only reads the account settings and the portfolio chart.
+- **It cannot trade or move money.** pytr can place orders, change savings plans and request payouts. This integration wraps pytr in a client that refuses every request outside a short list of read-only ones (portfolio, cash, instrument details, prices, the list of transactions, stock details), and the tests check that every order, savings plan, alarm, watchlist and payout call is refused. Outside that connection it only reads the account settings and the portfolio chart.
 - **Your PIN is never stored.** It is sent once to Trade Republic to log in, and the login is confirmed in the Trade Republic app. Afterwards the integration only uses the session cookies. When the session expires, Home Assistant asks for the PIN again.
 - **The session is stored.** The cookies live in `.storage/trade_republic/` inside your Home Assistant configuration, so they are also in your backups. Like the session of a browser logged into Trade Republic, they give access to the account until they expire: protect your configuration and encrypt your backups.
 - **Dependencies are pinned** to exact versions, so the code that runs changes only with a release of this integration.
@@ -43,11 +43,21 @@ All amounts are in the account currency.
 | Invested | What the securities cost, from their average purchase price |
 | Unrealized gain | Securities value minus invested, for the securities with a purchase price |
 | Unrealized return | Unrealized gain as a percentage of invested |
-| *One per security* | Market value, with `isin`, `quantity`, `average_price`, `price`, `invested`, `gain` and `gain_percent` as attributes |
+| Dividends this year, Dividends last 12 months, Dividends received | Dividends credited to the account, after taxes. *Dividends received* counts since the account was opened, with `by_year` and the last payment as attributes |
+| Interest this year, Interest last 12 months, Interest received | Interest on cash credited to the account, the same way |
+| Next dividend | The soonest dividend announced for a security you hold: quantity times dividend per share, before taxes. Attributes: `name`, `ex_date`, `payment_date`, `per_share`, and `upcoming` with every announced dividend |
+| Expected dividends per year | Quantity times the yearly dividend per share that Trade Republic projects for each security, before taxes, with `by_security` |
+| *One per security* | Market value, with `isin`, `quantity`, `average_price`, `price`, `invested`, `gain` and `gain_percent` as attributes, and for dividends `dividends_received`, `expected_annual_dividend`, `next_dividend_date` and `next_dividend` |
 
 A sensor appears when you buy a new security. When you sell all of it, its sensor becomes unavailable and is removed at the next restart.
 
 Prices are the last trade on the security's first exchange, usually Lang & Schwarz. Bonds are quoted in percent and converted. If a price does not arrive, the last known one is kept.
+
+### Dividends and interest
+
+Payments received come from the list of transactions in the app: the whole list is read at the first update and once a day, and only its newest page in between. They are the amounts credited, so dividends are after the taxes withheld. Until the list has been read, these sensors are unknown rather than zero.
+
+The dividends to come are those that Trade Republic shows on the page of each security: the next dividend once it is announced, and a projection for the year. They are estimates before taxes, computed with the quantity you hold today. Accumulating funds and most bonds pay nothing, so they do not appear.
 
 ## History
 
@@ -60,7 +70,7 @@ A series is imported only if its latest point agrees with today's value of the s
 
 ## Options
 
-**Update interval**: how often the portfolio is read, 30 minutes by default (15 minutes to 24 hours). Every update opens one connection and sends one request per security.
+**Update interval**: how often the portfolio is read, 30 minutes by default (15 minutes to 24 hours). Every update opens one connection and sends one request per security and one for the newest transactions; the stock details of each security are read twice a day.
 
 ## When the session expires
 
@@ -78,8 +88,8 @@ logger:
 
 ## Roadmap
 
-- Dividends and interest received
 - Savings plans
+- History of dividends and interest in the long-term statistics
 
 ## Credits
 

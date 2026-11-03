@@ -19,6 +19,30 @@
       "gain_percent": {
         "default": "mdi:percent"
       },
+      "dividends_year": {
+        "default": "mdi:hand-coin-outline"
+      },
+      "dividends_12_months": {
+        "default": "mdi:hand-coin-outline"
+      },
+      "dividends_total": {
+        "default": "mdi:hand-coin"
+      },
+      "interest_year": {
+        "default": "mdi:percent-circle-outline"
+      },
+      "interest_12_months": {
+        "default": "mdi:percent-circle-outline"
+      },
+      "interest_total": {
+        "default": "mdi:percent-circle"
+      },
+      "next_dividend": {
+        "default": "mdi:calendar-clock"
+      },
+      "expected_dividends": {
+        "default": "mdi:calendar-star"
+      },
       "position": {
         "default": "mdi:finance"
       }

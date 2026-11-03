@@ -134,7 +134,14 @@ async def test_diagnostics_reveal_nothing_personal(
 ) -> None:
     await _setup(hass, mock_config_entry)
     diagnostics = await get_diagnostics_for_config_entry(hass, hass_client, mock_config_entry)
-    assert diagnostics["portfolio"] == {"currency": "EUR", "positions": 2, "positions_without_average_price": 1}
+    assert diagnostics["portfolio"] == {
+        "currency": "EUR",
+        "positions": 2,
+        "positions_without_average_price": 1,
+        "dividend_payments": None,
+        "interest_payments": None,
+        "positions_with_dividend_outlook": 0,
+    }
     text = str(diagnostics)
     for secret in (ASML.isin, SAP.name, "2400", "+39"):
         assert secret not in text

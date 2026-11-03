@@ -79,6 +79,30 @@
       },
       "gain_percent": {
         "name": "Unrealized return"
+      },
+      "dividends_year": {
+        "name": "Dividends this year"
+      },
+      "dividends_12_months": {
+        "name": "Dividends last 12 months"
+      },
+      "dividends_total": {
+        "name": "Dividends received"
+      },
+      "interest_year": {
+        "name": "Interest this year"
+      },
+      "interest_12_months": {
+        "name": "Interest last 12 months"
+      },
+      "interest_total": {
+        "name": "Interest received"
+      },
+      "next_dividend": {
+        "name": "Next dividend"
+      },
+      "expected_dividends": {
+        "name": "Expected dividends per year"
       }
     }
   },

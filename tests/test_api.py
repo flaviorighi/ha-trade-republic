@@ -2,7 +2,7 @@
 
 import asyncio
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 import json
 from pathlib import Path
 from typing import Any
@@ -14,6 +14,8 @@ import pytest
 from custom_components.trade_republic import api as api_module
 from custom_components.trade_republic.api import (
     ALLOWED_SUBSCRIPTIONS,
+    DividendOutlook,
+    ExpectedDividend,
     HistoryPoint,
     ReadOnlyApi,
     ReadOnlyError,
@@ -30,6 +32,66 @@ INSTRUMENTS = {
     "DE0001102580": {"shortName": "Germany Feb. 2032", "exchangeIds": ["LSX"], "typeId": "bond"},
 }
 PRICES = {"NL0010273215": "101.5", "DE0001102580": "92.4"}
+
+
+def _event(event_id: str, event_type: str, amount: float, *, status: str = "EXECUTED", isin: str | None = None) -> dict:
+    """A timeline event shaped like the ones of a real account in 2026."""
+    return {
+        "id": event_id,
+        "timestamp": f"2026-{event_id[-2:]}-15T10:00:00.000+0000",
+        "title": "ASML " if isin else "Interest",
+        "icon": f"logos/{isin}/v2" if isin else "logos/timeline_interest_new/v2",
+        "subtitle": "Cash dividend" if isin else "2 % p.a.",
+        "amount": {"currency": "EUR", "value": amount, "fractionDigits": 2},
+        "status": status,
+        "eventType": event_type,
+        "deleted": False,
+    }
+
+
+# Newest first, two pages. Months are the last two digits of the ids.
+TIMELINE = [
+    [
+        _event("card-10", "CARD_TRANSACTION", -12.5),
+        _event("div-09", "SSP_CORPORATE_ACTION_CASH", 3.21, isin="NL0010273215"),
+        _event("int-09", "INTEREST_PAYOUT", 2.5),
+        # Canceled and rebooked: only the rebooking counts.
+        _event("div-08", "SSP_CORPORATE_ACTION_CASH", 1.11, status="CANCELED", isin="NL0010273215"),
+    ],
+    [
+        _event("tax-07", "SSP_CORPORATE_ACTION_CASH", -0.5, isin="NL0010273215"),
+        _event("old-06", "CREDIT", 1.0, isin="NL0010273215"),
+        _event("int-05", "INTEREST_PAYOUT_CREATED", 1.75),
+    ],
+]
+
+
+def timeline_answer(pages: list[list[dict]]) -> Callable[[dict], dict]:
+    def answer(request: dict) -> dict:
+        index = int(request.get("after") or 0)
+        after = str(index + 1) if index + 1 < len(pages) else None
+        return {"items": pages[index], "cursors": {"after": after}}
+
+    return answer
+
+
+STOCK_DETAILS = {
+    "NL0010273215": {
+        "expectedDividend": {
+            "paymentDate": "2026-11-20",
+            "exDate": "2026-11-10",
+            "amount": 0.5,
+            "amountCurrency": "EUR",
+            "type": "cash",
+        },
+        "aggregatedDividends": [
+            {"periodStartDate": "2026-01-01", "projected": True, "amount": 2.0, "amountCurrency": "EUR"},
+            {"periodStartDate": "2025-01-01", "projected": False, "amount": 1.8, "amountCurrency": "EUR"},
+        ],
+    },
+    # Bonds and accumulating funds pay nothing.
+    "DE0001102580": {"expectedDividend": None, "aggregatedDividends": []},
+}
 
 
 class FakeWebSocket:
@@ -69,6 +131,8 @@ def default_answers() -> dict[str, Callable[[dict], Any]]:
         "cash": lambda _: [{"accountNumber": "x", "currencyId": "EUR", "amount": 1234.5}],
         "instrument": lambda request: INSTRUMENTS[request["id"]],
         "ticker": lambda request: {"last": {"price": PRICES[request["id"].split(".")[0]]}},
+        "timelineTransactions": timeline_answer(TIMELINE),
+        "stockDetails": lambda request: STOCK_DETAILS[request["id"]],
     }
 
 
@@ -143,6 +207,81 @@ def test_position_without_purchase_price(tmp_path: Path) -> None:
     assert portfolio.gain_percent is None
 
 
+def test_reads_dividends_and_interest(tmp_path: Path) -> None:
+    portfolio = fetch(
+        tmp_path, TradeRepublicClient(PHONE, tmp_path / "s.cookies", "en"), FakeWebSocket(default_answers())
+    )
+
+    assert sorted((p.time.month, p.isin, p.name, p.amount) for p in portfolio.dividends) == [
+        (6, "NL0010273215", "ASML", 1.0),
+        (9, "NL0010273215", "ASML", 3.21),
+    ]
+    assert sorted((p.time.month, p.isin, p.amount) for p in portfolio.interest) == [(5, None, 1.75), (9, None, 2.5)]
+    assert portfolio.received(portfolio.dividends) == pytest.approx(4.21)
+    assert portfolio.received(portfolio.dividends, datetime(2026, 7, 1, tzinfo=UTC)) == pytest.approx(3.21)
+
+
+def test_timeline_updates_read_only_new_events(tmp_path: Path) -> None:
+    client = TradeRepublicClient(PHONE, tmp_path / "s.cookies", "en")
+    fetch(tmp_path, client, FakeWebSocket(default_answers()))
+
+    answers = default_answers()
+    answers["timelineTransactions"] = timeline_answer(
+        [[_event("div-11", "SSP_CORPORATE_ACTION_CASH", 4.0, isin="NL0010273215"), *TIMELINE[0]], *TIMELINE[1:]]
+    )
+    ws = FakeWebSocket(answers)
+    portfolio = fetch(tmp_path, client, ws)
+
+    # The first page already reaches known events: the older pages are not asked again.
+    assert [r for r in ws.subscriptions if r["type"] == "timelineTransactions"] == [
+        {"type": "timelineTransactions", "after": None}
+    ]
+    assert portfolio.received(portfolio.dividends) == pytest.approx(8.21)
+
+
+def test_timeline_failure_keeps_the_portfolio(tmp_path: Path) -> None:
+    answers = default_answers()
+    answers["timelineTransactions"] = lambda request: None
+    with patch.object(api_module, "READ_TIMEOUT", 0.1):
+        portfolio = fetch(tmp_path, TradeRepublicClient(PHONE, tmp_path / "s.cookies", "en"), FakeWebSocket(answers))
+    assert portfolio.cash == 1234.5
+    # Unknown, not zero.
+    assert portfolio.dividends is None
+    assert portfolio.interest is None
+
+
+def test_reads_dividend_outlook(tmp_path: Path) -> None:
+    client = TradeRepublicClient(PHONE, tmp_path / "s.cookies", "en")
+    portfolio = fetch(tmp_path, client, FakeWebSocket(default_answers()))
+
+    assert portfolio.outlook["NL0010273215"] == DividendOutlook(
+        currency="EUR", annual_per_share=2.0, next=ExpectedDividend(date(2026, 11, 10), date(2026, 11, 20), 0.5)
+    )
+    assert portfolio.outlook["DE0001102580"] == DividendOutlook(currency=None, annual_per_share=None, next=None)
+    assert portfolio.expected_annual_dividend("NL0010273215") == pytest.approx(20.0)
+    assert portfolio.expected_annual_dividends == pytest.approx(20.0)
+    asml = portfolio.positions["NL0010273215"]
+    assert portfolio.upcoming_dividends(date(2026, 11, 3)) == [(asml, portfolio.outlook["NL0010273215"].next)]
+    # Paid dividends are no longer upcoming.
+    assert portfolio.upcoming_dividends(date(2026, 11, 21)) == []
+
+    # Stock details change rarely and are not asked at every update.
+    ws = FakeWebSocket(default_answers())
+    fetch(tmp_path, client, ws)
+    assert "stockDetails" not in {request["type"] for request in ws.subscriptions}
+
+
+def test_stopped_dividends_are_not_expected(tmp_path: Path) -> None:
+    answers = default_answers()
+    answers["stockDetails"] = lambda request: {
+        "expectedDividend": None,
+        # Only years long gone.
+        "aggregatedDividends": [{"periodStartDate": "2019-01-01", "amount": 3.0, "amountCurrency": "EUR"}],
+    }
+    portfolio = fetch(tmp_path, TradeRepublicClient(PHONE, tmp_path / "s.cookies", "en"), FakeWebSocket(answers))
+    assert portfolio.expected_annual_dividend("NL0010273215") is None
+
+
 @pytest.mark.parametrize(
     "call",
     [
@@ -156,6 +295,8 @@ def test_position_without_purchase_price(tmp_path: Path) -> None:
         lambda api: api.create_price_alarm("NL0010273215", 100),
         lambda api: api.add_watchlist("NL0010273215"),
         lambda api: api.timeline(),
+        lambda api: api.timeline_activity_log(),
+        lambda api: api.timeline_detail_v2("event"),
     ],
 )
 def test_refuses_requests_that_are_not_allowed(tmp_path: Path, call: Callable[[ReadOnlyApi], Any]) -> None:

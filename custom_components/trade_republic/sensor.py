@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -18,8 +19,9 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
-from .api import Portfolio, Position
+from .api import Payment, Portfolio, Position
 from .const import DOMAIN
 from .coordinator import TradeRepublicConfigEntry, TradeRepublicCoordinator
 
@@ -32,17 +34,113 @@ class TradeRepublicSensorDescription(SensorEntityDescription):
     """An account sensor and how to read its value."""
 
     value_fn: Callable[[Portfolio], float | None]
+    attributes_fn: Callable[[Portfolio], dict[str, Any] | None] | None = None
+    last_reset_fn: Callable[[], datetime] | None = None
 
 
-def _money(key: str, value_fn: Callable[[Portfolio], float | None]) -> TradeRepublicSensorDescription:
+def _money(
+    key: str,
+    value_fn: Callable[[Portfolio], float | None],
+    state_class: SensorStateClass | None = SensorStateClass.TOTAL,
+    **kwargs: Any,
+) -> TradeRepublicSensorDescription:
     return TradeRepublicSensorDescription(
         key=key,
         translation_key=key,
         device_class=SensorDeviceClass.MONETARY,
-        state_class=SensorStateClass.TOTAL,
+        state_class=state_class,
         suggested_display_precision=2,
         value_fn=value_fn,
+        **kwargs,
     )
+
+
+def _start_of_year() -> datetime:
+    return dt_util.start_of_local_day(dt_util.now().date().replace(month=1, day=1))
+
+
+def _year_ago() -> datetime:
+    return dt_util.now() - timedelta(days=365)
+
+
+def _total_attributes(portfolio: Portfolio, payments: tuple[Payment, ...] | None) -> dict[str, Any] | None:
+    if payments is None:
+        return None
+    mine = sorted((p for p in payments if p.currency == portfolio.currency), key=lambda p: p.time)
+    by_year: dict[str, float] = {}
+    for payment in mine:
+        year = str(dt_util.as_local(payment.time).year)
+        by_year[year] = round(by_year.get(year, 0) + payment.amount, 2)
+    last = mine[-1] if mine else None
+    return {
+        "payments": len(mine),
+        "by_year": by_year,
+        "last_date": dt_util.as_local(last.time).date().isoformat() if last else None,
+        "last_name": last.name if last else None,
+        "last_amount": round(last.amount, 2) if last else None,
+    }
+
+
+def _received_sensors(
+    kind: str, payments_fn: Callable[[Portfolio], tuple[Payment, ...] | None]
+) -> tuple[TradeRepublicSensorDescription, ...]:
+    """Net amounts credited this year, in the last 12 months and since the account was opened."""
+    return (
+        _money(
+            f"{kind}_year",
+            lambda p: p.received(payments_fn(p), _start_of_year()),
+            last_reset_fn=_start_of_year,
+        ),
+        _money(f"{kind}_12_months", lambda p: p.received(payments_fn(p), _year_ago()), state_class=None),
+        _money(
+            f"{kind}_total",
+            lambda p: p.received(payments_fn(p)),
+            attributes_fn=lambda p: _total_attributes(p, payments_fn(p)),
+        ),
+    )
+
+
+def _upcoming(portfolio: Portfolio) -> list[dict[str, Any]]:
+    return [
+        {
+            "name": position.name,
+            "isin": position.isin,
+            "ex_date": dividend.ex_date.isoformat(),
+            "payment_date": dividend.payment_date.isoformat(),
+            "per_share": round(dividend.per_share, 4),
+            "quantity": round(position.quantity, 6),
+            "amount": round(position.quantity * dividend.per_share, 2),
+        }
+        for position, dividend in portfolio.upcoming_dividends(dt_util.now().date())
+    ]
+
+
+def _next_dividend(portfolio: Portfolio) -> float | None:
+    upcoming = _upcoming(portfolio)
+    return upcoming[0]["amount"] if upcoming else None
+
+
+def _next_dividend_attributes(portfolio: Portfolio) -> dict[str, Any]:
+    upcoming = _upcoming(portfolio)
+    first = upcoming[0] if upcoming else {}
+    return {
+        "name": first.get("name"),
+        "isin": first.get("isin"),
+        "ex_date": first.get("ex_date"),
+        "payment_date": first.get("payment_date"),
+        "per_share": first.get("per_share"),
+        "quantity": first.get("quantity"),
+        "upcoming": upcoming,
+    }
+
+
+def _expected_attributes(portfolio: Portfolio) -> dict[str, Any]:
+    by_security = {
+        position.name: round(value, 2)
+        for isin, position in portfolio.positions.items()
+        if (value := portfolio.expected_annual_dividend(isin))
+    }
+    return {"by_security": dict(sorted(by_security.items(), key=lambda item: -item[1]))}
 
 
 SENSORS: tuple[TradeRepublicSensorDescription, ...] = (
@@ -58,6 +156,16 @@ SENSORS: tuple[TradeRepublicSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=2,
         value_fn=lambda p: p.gain_percent,
+    ),
+    *_received_sensors("dividends", lambda p: p.dividends),
+    *_received_sensors("interest", lambda p: p.interest),
+    # Estimates from the dividends announced or expected, before taxes.
+    _money("next_dividend", _next_dividend, state_class=None, attributes_fn=_next_dividend_attributes),
+    _money(
+        "expected_dividends",
+        lambda p: p.expected_annual_dividends,
+        state_class=None,
+        attributes_fn=_expected_attributes,
     ),
 )
 
@@ -130,6 +238,18 @@ class TradeRepublicSensor(TradeRepublicEntity, SensorEntity):
             return self.coordinator.data.currency
         return super().native_unit_of_measurement
 
+    @property
+    def last_reset(self) -> datetime | None:
+        if (last_reset_fn := self.entity_description.last_reset_fn) is None:
+            return None
+        return last_reset_fn()
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        if (attributes_fn := self.entity_description.attributes_fn) is None:
+            return None
+        return attributes_fn(self.coordinator.data)
+
 
 class PositionSensor(TradeRepublicEntity, SensorEntity):
     """The market value of one security, with its details as attributes."""
@@ -165,6 +285,14 @@ class PositionSensor(TradeRepublicEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any] | None:
         if (position := self._position) is None:
             return None
+        portfolio = self.coordinator.data
+        received = None
+        if portfolio.dividends is not None:
+            received = portfolio.received(tuple(p for p in portfolio.dividends if p.isin == position.isin))
+        outlook = portfolio.outlook_of(position.isin)
+        upcoming = (
+            outlook.next if outlook and outlook.next and outlook.next.payment_date >= dt_util.now().date() else None
+        )
         return {
             "isin": position.isin,
             "quantity": round(position.quantity, 6),
@@ -173,6 +301,10 @@ class PositionSensor(TradeRepublicEntity, SensorEntity):
             "invested": _round(position.invested, 2),
             "gain": _round(position.gain, 2),
             "gain_percent": _round(position.gain_percent, 2),
+            "dividends_received": _round(received, 2),
+            "expected_annual_dividend": _round(portfolio.expected_annual_dividend(position.isin), 2),
+            "next_dividend_date": upcoming.payment_date.isoformat() if upcoming else None,
+            "next_dividend": round(position.quantity * upcoming.per_share, 2) if upcoming else None,
         }
 
 

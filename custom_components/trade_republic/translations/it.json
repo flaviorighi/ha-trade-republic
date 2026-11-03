@@ -79,6 +79,30 @@
       },
       "gain_percent": {
         "name": "Rendimento non realizzato"
+      },
+      "dividends_year": {
+        "name": "Dividendi quest'anno"
+      },
+      "dividends_12_months": {
+        "name": "Dividendi ultimi 12 mesi"
+      },
+      "dividends_total": {
+        "name": "Dividendi ricevuti"
+      },
+      "interest_year": {
+        "name": "Interessi quest'anno"
+      },
+      "interest_12_months": {
+        "name": "Interessi ultimi 12 mesi"
+      },
+      "interest_total": {
+        "name": "Interessi ricevuti"
+      },
+      "next_dividend": {
+        "name": "Prossimo dividendo"
+      },
+      "expected_dividends": {
+        "name": "Dividendi attesi in un anno"
       }
     }
   },

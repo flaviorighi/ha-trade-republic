@@ -6,18 +6,23 @@ and pay out cash: ReadOnlyApi refuses every request that is not in ALLOWED_SUBSC
 none of that can be reached from this integration. Outside the websocket the integration only
 reads: the account settings (to resume the session) and the portfolio chart (HISTORY_PATH).
 
+Besides the portfolio, the client reads the timeline (dividends and interest received) and the
+stock details (dividends announced or expected) and keeps them between updates.
+
 Every public method of TradeRepublicClient blocks: call it from an executor thread.
 """
 
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
-from datetime import UTC, datetime
+from dataclasses import dataclass, field
+from datetime import UTC, date, datetime
 import hashlib
 from http.cookiejar import LoadError
 import logging
 from pathlib import Path
+import re
+import time
 from typing import Any
 from urllib.parse import urlencode
 
@@ -30,7 +35,9 @@ _LOGGER = logging.getLogger(__name__)
 
 # The websocket subscriptions this integration may send. Orders, savings plans, price alarms
 # and watchlist changes are subscriptions too, and are refused.
-ALLOWED_SUBSCRIPTIONS = frozenset({"compactPortfolioByType", "cash", "instrument", "ticker"})
+ALLOWED_SUBSCRIPTIONS = frozenset(
+    {"compactPortfolioByType", "cash", "instrument", "ticker", "timelineTransactions", "stockDetails"}
+)
 
 # pytr wants a PIN even to resume a session, where it never sends it. The PIN is needed only
 # to log in, so the integration does not keep it and this placeholder stands in for it.
@@ -47,6 +54,21 @@ HISTORY_RANGES = ("max", "1y")
 # The performance of each point counts from the start of its range: only this one starts at the
 # first purchase, so only its points say how much was invested.
 HISTORY_SINCE_START = "max"
+
+# Timeline events that credit dividends and interest, as seen on a real account in 2026; CREDIT
+# and SSP_CORPORATE_ACTION_INVOICE_CASH are the dividend events of older accounts.
+DIVIDEND_EVENTS = frozenset({"SSP_CORPORATE_ACTION_CASH", "SSP_CORPORATE_ACTION_INVOICE_CASH", "CREDIT"})
+INTEREST_EVENTS = frozenset({"INTEREST_PAYOUT", "INTEREST_PAYOUT_CREATED"})
+FINAL_STATUSES = frozenset({"EXECUTED", "CANCELED"})
+# The icon of an event about a security is its logo: logos/<ISIN>/v2.
+ICON_ISIN = re.compile(r"logos/([A-Z]{2}[A-Z0-9]{9}[0-9])/")
+# The whole timeline is read on the first update and once a day, which also picks up bookings
+# that Trade Republic cancels later; in between only its newest pages.
+TIMELINE_MAX_PAGES = 1000
+TIMELINE_UPDATE_PAGES = 5
+TIMELINE_FULL_READ = 24 * 3600
+# Dividends announced and expected change rarely.
+OUTLOOK_REFRESH = 12 * 3600
 
 
 class TradeRepublicAuthError(Exception):
@@ -118,12 +140,46 @@ class HistoryPoint:
 
 
 @dataclass(frozen=True, slots=True)
+class Payment:
+    """A dividend or an interest payment, as credited to the account."""
+
+    time: datetime
+    isin: str | None
+    name: str
+    amount: float
+    currency: str
+
+
+@dataclass(frozen=True, slots=True)
+class ExpectedDividend:
+    """The next dividend of a security, as announced."""
+
+    ex_date: date
+    payment_date: date
+    per_share: float
+
+
+@dataclass(frozen=True, slots=True)
+class DividendOutlook:
+    """What a security is expected to pay, per share and before taxes."""
+
+    currency: str | None
+    # The dividends of the current year, projected by Trade Republic, or of last year.
+    annual_per_share: float | None
+    next: ExpectedDividend | None
+
+
+@dataclass(frozen=True, slots=True)
 class Portfolio:
-    """Cash and securities of one account."""
+    """Cash and securities of one account, with the dividends and interest it received."""
 
     currency: str
     cash: float
     positions: dict[str, Position]
+    # None until the timeline has been read once.
+    dividends: tuple[Payment, ...] | None = None
+    interest: tuple[Payment, ...] | None = None
+    outlook: dict[str, DividendOutlook] = field(default_factory=dict)
 
     @property
     def securities_value(self) -> float:
@@ -147,6 +203,40 @@ class Portfolio:
         if not (invested := self.invested):
             return None
         return self.gain / invested * 100
+
+    def received(self, payments: tuple[Payment, ...] | None, since: datetime | None = None) -> float | None:
+        """The sum of the payments in the account currency, since a moment or ever."""
+        if payments is None:
+            return None
+        return sum(p.amount for p in payments if p.currency == self.currency and (since is None or p.time >= since))
+
+    def outlook_of(self, isin: str) -> DividendOutlook | None:
+        outlook = self.outlook.get(isin)
+        return outlook if outlook is not None and outlook.currency == self.currency else None
+
+    def expected_annual_dividend(self, isin: str) -> float | None:
+        """Quantity held times the yearly dividend per share, before taxes."""
+        outlook = self.outlook_of(isin)
+        if outlook is None or outlook.annual_per_share is None or isin not in self.positions:
+            return None
+        return self.positions[isin].quantity * outlook.annual_per_share
+
+    @property
+    def expected_annual_dividends(self) -> float | None:
+        if not self.outlook:
+            return None
+        return sum(value for isin in self.positions if (value := self.expected_annual_dividend(isin)) is not None)
+
+    def upcoming_dividends(self, today: date) -> list[tuple[Position, ExpectedDividend]]:
+        """Announced dividends not paid yet, the soonest first."""
+        upcoming = [
+            (position, outlook.next)
+            for isin, position in self.positions.items()
+            if (outlook := self.outlook_of(isin)) is not None
+            and outlook.next is not None
+            and outlook.next.payment_date >= today
+        ]
+        return sorted(upcoming, key=lambda item: item[1].payment_date)
 
 
 class ReadOnlyApi(TradeRepublicApi):
@@ -205,6 +295,12 @@ class TradeRepublicClient:
         self._locale = locale
         self._login: ReadOnlyApi | None = None
         self._instruments: dict[str, Instrument] = {}
+        # Timeline events whose status will not change, and the payments found among them.
+        self._final_events: set[str] = set()
+        self._dividends: dict[str, Payment] = {}
+        self._interest: dict[str, Payment] = {}
+        self._timeline_read_at: float | None = None
+        self._outlook: dict[str, tuple[float, DividendOutlook]] = {}
 
     def start_login(self, pin: str) -> bool:
         """Send phone number and PIN.
@@ -331,6 +427,8 @@ class TradeRepublicClient:
             isins = [raw.get("isin") or raw["instrumentId"] for raw in raw_positions]
             await self._learn_instruments(api, isins)
             prices = await self._prices(api, isins, previous)
+            await self._read_timeline(api)
+            await self._read_outlook(api, isins)
         finally:
             await api.close()
 
@@ -350,10 +448,81 @@ class TradeRepublicClient:
             cash = sum(float(a["amount"]) for a in accounts if a.get("currencyId") == currency)
         except (KeyError, TypeError, ValueError) as err:
             raise TradeRepublicConnectionError(f"unexpected answer from Trade Republic: {err!r}") from err
-        return Portfolio(currency=currency, cash=cash, positions=positions)
+        timeline_read = self._timeline_read_at is not None
+        return Portfolio(
+            currency=currency,
+            cash=cash,
+            positions=positions,
+            dividends=tuple(self._dividends.values()) if timeline_read else None,
+            interest=tuple(self._interest.values()) if timeline_read else None,
+            outlook={isin: self._outlook[isin][1] for isin in isins if isin in self._outlook},
+        )
 
     async def _recv(self, api: ReadOnlyApi) -> tuple[str, dict[str, Any], Any]:
         return await asyncio.wait_for(api.recv(), READ_TIMEOUT)
+
+    async def _answer(self, api: ReadOnlyApi, sub_id: str) -> Any:
+        """The answer to one subscription, which is then closed."""
+        try:
+            while True:
+                got_id, _, payload = await self._recv(api)
+                if got_id == sub_id:
+                    return payload
+        finally:
+            await api.unsubscribe(sub_id)
+
+    async def _read_timeline(self, api: ReadOnlyApi) -> None:
+        """Collect the dividends and interest credited, from the newest page to the oldest."""
+        full = self._timeline_read_at is None or time.monotonic() - self._timeline_read_at > TIMELINE_FULL_READ
+        if full:
+            final_events: set[str] = set()
+            dividends: dict[str, Payment] = {}
+            interest: dict[str, Payment] = {}
+        else:
+            final_events, dividends, interest = set(self._final_events), dict(self._dividends), dict(self._interest)
+        after = None
+        try:
+            for _ in range(TIMELINE_MAX_PAGES if full else TIMELINE_UPDATE_PAGES):
+                payload = await self._answer(api, await api.timeline_transactions(after))
+                reached_known = False
+                for event in payload.get("items", []):
+                    if not full and event.get("id") in self._final_events:
+                        reached_known = True
+                        continue
+                    _collect(event, final_events, dividends, interest)
+                after = (payload.get("cursors") or {}).get("after")
+                if not after or reached_known:
+                    break
+        except (TimeoutError, TradeRepublicError, KeyError, TypeError, ValueError, AttributeError) as err:
+            # Dividends and interest wait for the next update; the portfolio is still good.
+            _LOGGER.warning("Could not read the timeline: %r", err)
+            return
+        if full and after:
+            _LOGGER.warning("The timeline is longer than %s pages: older payments are missing", TIMELINE_MAX_PAGES)
+        self._final_events, self._dividends, self._interest = final_events, dividends, interest
+        if full:
+            self._timeline_read_at = time.monotonic()
+
+    async def _read_outlook(self, api: ReadOnlyApi, isins: list[str]) -> None:
+        now = time.monotonic()
+        pending = {}
+        for isin in isins:
+            if isin not in self._outlook or now - self._outlook[isin][0] > OUTLOOK_REFRESH:
+                pending[await api.stock_details(isin)] = isin
+        while pending:
+            try:
+                sub_id, _, payload = await self._recv(api)
+            except (TimeoutError, TradeRepublicError) as err:
+                # Some securities may not answer: they are asked again at the next update.
+                _LOGGER.debug("No stock details for %s: %r", ", ".join(pending.values()), err)
+                break
+            if (isin := pending.pop(sub_id, None)) is None:
+                continue
+            await api.unsubscribe(sub_id)
+            try:
+                self._outlook[isin] = (now, _dividend_outlook(payload, datetime.now(UTC).year))
+            except (KeyError, TypeError, ValueError, AttributeError) as err:
+                _LOGGER.debug("Unexpected stock details for %s: %r", isin, err)
 
     async def _positions_and_cash(self, api: ReadOnlyApi) -> tuple[list[dict], list]:
         await api.compact_portfolio()
@@ -416,6 +585,57 @@ class TradeRepublicClient:
             else:
                 raise TradeRepublicConnectionError(f"no price for {isin}")
         return prices
+
+
+def _collect(
+    event: dict[str, Any], final_events: set[str], dividends: dict[str, Payment], interest: dict[str, Payment]
+) -> None:
+    """Remember an event of the timeline, and keep it if it credited a dividend or interest."""
+    event_id = event["id"]
+    status = event.get("status")
+    if status in FINAL_STATUSES:
+        final_events.add(event_id)
+    event_type = (event.get("eventType") or "").upper()
+    if event_type in DIVIDEND_EVENTS:
+        target = dividends
+    elif event_type in INTEREST_EVENTS:
+        target = interest
+    else:
+        return
+    amount = event.get("amount") or {}
+    if status != "EXECUTED" or event.get("deleted") or not amount.get("value") or float(amount["value"]) <= 0:
+        # Canceled bookings, and taxes booked under the same event types.
+        target.pop(event_id, None)
+        return
+    isin = ICON_ISIN.search(event.get("icon") or "")
+    target[event_id] = Payment(
+        time=datetime.fromisoformat(event["timestamp"]),
+        isin=isin.group(1) if isin else None,
+        name=(event.get("title") or "").strip(),
+        amount=float(amount["value"]),
+        currency=amount.get("currency") or "",
+    )
+
+
+def _dividend_outlook(payload: dict[str, Any], year: int) -> DividendOutlook:
+    """Dividends of a security from its stock details; funds and bonds have none."""
+    currency = None
+    expected = None
+    if (raw := payload.get("expectedDividend")) and raw.get("amount") is not None and raw.get("paymentDate"):
+        currency = raw.get("amountCurrency")
+        expected = ExpectedDividend(
+            ex_date=date.fromisoformat(raw.get("exDate") or raw["paymentDate"]),
+            payment_date=date.fromisoformat(raw["paymentDate"]),
+            per_share=float(raw["amount"]),
+        )
+    # Only this year or last year: an older amount would be a dividend that was stopped.
+    years = {str(entry.get("periodStartDate", ""))[:4]: entry for entry in payload.get("aggregatedDividends") or []}
+    annual = None
+    entry = years.get(str(year)) or years.get(str(year - 1))
+    if entry and entry.get("amount") is not None and currency in (None, entry.get("amountCurrency")):
+        annual = float(entry["amount"])
+        currency = entry.get("amountCurrency")
+    return DividendOutlook(currency=currency, annual_per_share=annual, next=expected)
 
 
 def _history_points(payload: Any) -> list[HistoryPoint]:
