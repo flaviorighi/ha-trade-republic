@@ -2,6 +2,10 @@
 
 Brings the portfolio of a [Trade Republic](https://traderepublic.com) account into Home Assistant: total value, cash, invested capital, unrealized gain, dividends and interest received, the dividends to come, and one sensor for every security you hold.
 
+![A dashboard built from the sensors of the integration, with made-up data](https://raw.githubusercontent.com/flaviorighi/ha-trade-republic/main/docs/images/dashboard.png)
+
+*A dashboard built from the sensors, with made-up data. The cards are [Mushroom](https://github.com/piitaya/lovelace-mushroom), [ApexCharts](https://github.com/RomRider/apexcharts-card), [card-mod](https://github.com/thomasloven/lovelace-card-mod) and [auto-entities](https://github.com/thomasloven/lovelace-auto-entities): they are not part of the integration.*
+
 > **Unofficial.** This project is not affiliated with Trade Republic Bank GmbH. It uses the same private API as Trade Republic's web app, through [pytr](https://github.com/pytr-org/pytr). Trade Republic can change or block that API at any time, and the integration then stops working until it is updated.
 
 ## Read-only by design
@@ -32,6 +36,8 @@ Copy `custom_components/trade_republic` into the `custom_components` folder of y
 Logging in from Home Assistant does not log you out of the app on your phone.
 
 ## Entities
+
+![The sensors of one account](https://raw.githubusercontent.com/flaviorighi/ha-trade-republic/main/docs/images/device.png)
 
 All amounts are in the account currency.
 
