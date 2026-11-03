@@ -1,5 +1,8 @@
 # Trade Republic for Home Assistant
 
+[![Downloads](https://img.shields.io/github/downloads/flaviorighi/ha-trade-republic/total?label=downloads)](https://github.com/flaviorighi/ha-trade-republic/releases)
+[![Installations](https://img.shields.io/badge/dynamic/json?label=installations&query=%24.trade_republic.total&url=https%3A%2F%2Fanalytics.home-assistant.io%2Fcustom_integrations.json)](https://analytics.home-assistant.io/)
+
 Brings the portfolio of a [Trade Republic](https://traderepublic.com) account into Home Assistant: total value, cash, invested capital, unrealized gain, dividends and interest received, the dividends to come, and one sensor for every security you hold.
 
 ![A dashboard built from the sensors of the integration, with made-up data](https://raw.githubusercontent.com/flaviorighi/ha-trade-republic/main/docs/images/dashboard.png)
@@ -25,7 +28,7 @@ Brings the portfolio of a [Trade Republic](https://traderepublic.com) account in
 
 ### Manual
 
-Copy `custom_components/trade_republic` into the `custom_components` folder of your configuration and restart Home Assistant.
+Download `trade_republic.zip` from the [latest release](https://github.com/flaviorighi/ha-trade-republic/releases/latest), extract it into `custom_components/trade_republic` in your configuration and restart Home Assistant.
 
 ## Setup
 

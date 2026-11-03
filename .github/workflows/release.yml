@@ -1,0 +1,39 @@
+name: Release
+
+# HACS installs the zip attached to each release (zip_release in hacs.json), so GitHub counts
+# every download. The zip holds the files of custom_components/trade_republic at its root.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release to attach the zip to
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+      - name: Check the version
+        run: |
+          version=$(jq -r .version custom_components/trade_republic/manifest.json)
+          if [ "v$version" != "$TAG" ]; then
+            echo "manifest.json says $version, the release is $TAG"
+            exit 1
+          fi
+      - name: Zip the integration
+        run: cd custom_components/trade_republic && zip -r -X ../../trade_republic.zip . -x '__pycache__/*'
+      - name: Attach it to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" trade_republic.zip --clobber

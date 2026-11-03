@@ -1,4 +1,6 @@
 {
   "name": "Trade Republic",
-  "homeassistant": "2026.10.0"
+  "homeassistant": "2026.10.0",
+  "zip_release": true,
+  "filename": "trade_republic.zip"
 }
