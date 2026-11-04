@@ -1,0 +1,77 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "timezone": "Europe/Rome",
+  "schedule": [
+    "* 0-8 * * 1"
+  ],
+  "minimumReleaseAge": "7 days",
+  "labels": [
+    "dependencies"
+  ],
+  "platformAutomerge": false,
+  "packageRules": [
+    {
+      "description": "The requirements in manifest.json change the code that runs in Home Assistant: merged by hand, and shipped only with a release. They are the same as in requirements_test.txt, so both files change in the same pull request.",
+      "matchManagers": [
+        "homeassistant-manifest"
+      ],
+      "addLabels": [
+        "runtime"
+      ],
+      "prBodyNotes": [
+        "This changes what Home Assistant installs. Check that it fits the packages Home Assistant pins (`homeassistant/package_constraints.txt`) in the oldest version supported in `hacs.json`, merge it by hand after reading the changelog, and ship it with a release (bump `version` in `manifest.json`)."
+      ]
+    },
+    {
+      "description": "curl_cffi 0.17 needs cffi>=2.1.1, while Home Assistant 2026.10 pins cffi==2.0.0. Lift this when the oldest version in hacs.json allows it.",
+      "matchDepNames": [
+        "curl_cffi"
+      ],
+      "allowedVersions": "<0.17"
+    },
+    {
+      "description": "Test tools merge themselves when the tests pass.",
+      "matchDepNames": [
+        "pytest-homeassistant-custom-component",
+        "pytest-timeout",
+        "ruff"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "GitHub Actions in one pull request, merged by themselves when the tests pass unless one of them has a new major version.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "GitHub Actions"
+    },
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "The Python of the tests follows the one Home Assistant runs on, not the newest release: changed by hand.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchDepNames": [
+        "python"
+      ],
+      "enabled": false
+    }
+  ]
+}

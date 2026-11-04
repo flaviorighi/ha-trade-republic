@@ -104,6 +104,10 @@ logger:
 
 Built on [pytr](https://github.com/pytr-org/pytr) (MIT), which keeps up with Trade Republic's login and protocol.
 
+## Contributing
+
+Bug reports and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
 MIT
