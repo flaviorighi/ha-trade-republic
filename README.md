@@ -9,6 +9,17 @@ Brings the portfolio of a [Trade Republic](https://traderepublic.com) account in
 
 *A dashboard built from the sensors, with made-up data. The cards are [Mushroom](https://github.com/piitaya/lovelace-mushroom), [ApexCharts](https://github.com/RomRider/apexcharts-card), [card-mod](https://github.com/thomasloven/lovelace-card-mod) and [auto-entities](https://github.com/thomasloven/lovelace-auto-entities): they are not part of the integration.*
 
+> [!WARNING]
+> **Read this before you install it: your account, your data, your responsibility.**
+>
+> - **The integration sees your whole account**: balances, securities, transactions, dividends and interest.
+> - **Your data goes nowhere else.** The integration talks only to Trade Republic. Nothing is sent to the author or to any other service.
+> - **The read-only limit is in this code, not in your session.** The session Home Assistant keeps is the same as a browser logged into Trade Republic: whoever copies it from your configuration or a backup can do what the Trade Republic web app allows, until it expires. Protect access to your Home Assistant, its add-ons and its backups, and encrypt your backups.
+> - **Your amounts become Home Assistant entities.** Everyone who can use your Home Assistant sees them, they are kept in its database and backups, and they reach anything you share entities with, such as voice assistants or cloud services.
+> - **No warranty.** This is an unofficial project, provided as it is under the MIT license. Use it at your own risk.
+>
+> Details in [Read-only by design](#read-only-by-design).
+
 > **Unofficial.** This project is not affiliated with Trade Republic Bank GmbH. It uses the same private API as Trade Republic's web app, through [pytr](https://github.com/pytr-org/pytr). Trade Republic can change or block that API at any time, and the integration then stops working until it is updated. Trade Republic is a trademark of Trade Republic Bank GmbH, used here only to name the service the integration reads.
 
 ## Read-only by design
