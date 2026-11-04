@@ -10,7 +10,7 @@ Thanks for helping. Bug reports, fixes and new sensors are all welcome. For anyt
 
 ## Reporting a security problem
 
-If you find a way for the integration to send a request that is not read-only, or to leak the PIN or the session, do not open a public issue: use **Report a vulnerability** in the Security tab of the repository.
+If you find a way for the integration to send a request that is not read-only, or to leak the PIN or the session, do not open a public issue: see [SECURITY.md](SECURITY.md).
 
 ## Development
 

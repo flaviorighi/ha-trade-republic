@@ -1,0 +1,58 @@
+name: Bug report
+description: Something does not work as it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Keep your account private.** Do not paste your phone number, PIN, session cookies, amounts, positions or ISINs. The diagnostics file contains none of these and can be attached as it is; debug logs do contain your positions, so remove them first.
+
+        If the problem could let the integration send a request that is not read-only, or leak the PIN or the session, do not open an issue: [report it privately](https://github.com/flaviorighi/ha-trade-republic/security/advisories/new).
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to reproduce it
+      description: The steps that lead to the problem, if you know them.
+  - type: input
+    id: version
+    attributes:
+      label: Version of the integration
+      description: In Settings → Devices & services → Trade Republic, or in HACS.
+      placeholder: "0.1.1"
+    validations:
+      required: true
+  - type: input
+    id: ha_version
+    attributes:
+      label: Version of Home Assistant
+      description: In Settings → About.
+      placeholder: "2026.11.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installed with
+      options:
+        - HACS
+        - By hand
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: In Settings → Devices & services → Trade Republic → ⋮ → Download diagnostics. Drag the file here.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log
+      description: The lines of the Home Assistant log about `custom_components.trade_republic`, with amounts and positions removed.
+      render: text

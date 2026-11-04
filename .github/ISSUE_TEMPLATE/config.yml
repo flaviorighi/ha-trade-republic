@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem
+    url: https://github.com/flaviorighi/ha-trade-republic/security/advisories/new
+    about: A way for the integration to send a request that is not read-only, or to leak the PIN or the session. Reported privately.

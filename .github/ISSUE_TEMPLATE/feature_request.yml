@@ -1,0 +1,20 @@
+name: Feature request
+description: A sensor, an option or anything else the integration could do
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The integration only reads the account: requests to place orders, change savings plans or move money will be declined.
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like
+      description: What the integration should do, and what you would use it for.
+    validations:
+      required: true
+  - type: textarea
+    id: app
+    attributes:
+      label: Where it is in the Trade Republic app
+      description: If the data is shown in the app or on the website, where. It helps to find the request behind it.

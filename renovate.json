@@ -1,7 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
   ],
   "timezone": "Europe/Rome",
   "schedule": [
@@ -59,9 +60,11 @@
       "matchUpdateTypes": [
         "minor",
         "patch",
-        "digest"
+        "digest",
+        "pinDigest"
       ],
-      "automerge": true
+      "automerge": true,
+      "description": "Actions are pinned to a commit (helpers:pinGitHubActionDigests), so a moved tag or branch cannot change what runs. Pins and their updates merge themselves when the tests pass."
     },
     {
       "description": "The Python of the tests follows the one Home Assistant runs on, not the newest release: changed by hand.",
