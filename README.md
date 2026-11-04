@@ -99,6 +99,7 @@ logger:
 
 - Savings plans
 - History of dividends and interest in the long-term statistics
+- A dashboard card, shipped with the integration: the portfolio and its securities sorted by value, following what is bought and sold, with the amounts optionally hidden until tapped
 
 ## Credits
 
