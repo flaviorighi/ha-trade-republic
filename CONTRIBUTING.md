@@ -30,6 +30,7 @@ The tests never reach Trade Republic: they talk to a fake websocket (`FakeWebSoc
 - One change per pull request, with tests for the behaviour it adds or fixes.
 - Texts shown in Home Assistant live in `strings.json` and `translations/en.json` (identical), `de.json` and `it.json`. Add every new key to all four; if you cannot translate it, leave the English text and say so in the pull request.
 - Update `README.md` when entities, attributes or options change.
+- AI coding tools are fine, as they were for this project: read and test what you submit as if you had written it, and say in the pull request that you used one.
 - Commit messages say what changes for the person using the integration, for example *Keep isin off the next dividend sensor, which is not a security*.
 
 ## Dependencies
