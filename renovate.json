@@ -67,6 +67,14 @@
       "description": "Actions are pinned to a commit (helpers:pinGitHubActionDigests), so a moved tag or branch cannot change what runs. Pins and their updates merge themselves when the tests pass."
     },
     {
+      "description": "hassfest and the HACS action follow their branch, as their docs say: they check against today's rules of Home Assistant and HACS, their tagged releases are years old, and both run a Docker image that follows the branch, so a pinned commit would not freeze what runs. The workflow can only read the repository.",
+      "matchDepNames": [
+        "home-assistant/actions",
+        "hacs/action"
+      ],
+      "pinDigests": false
+    },
+    {
       "description": "The Python of the tests follows the one Home Assistant runs on, not the newest release: changed by hand.",
       "matchManagers": [
         "github-actions"
