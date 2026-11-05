@@ -94,7 +94,7 @@ A series is imported only if its latest point agrees with today's value of the s
 
 ## When the session expires
 
-Trade Republic ends web sessions after a while. Home Assistant then shows a repair to log in again: enter your PIN and confirm in the app. Until then the sensors are unavailable.
+Trade Republic ends web sessions 24 hours after the login, whether or not they are in use: the session cannot be extended. This is a Trade Republic limit: its own web app asks for the PIN again too. Home Assistant then shows a repair to log in again: enter your PIN and confirm in the app. Until then the sensors are unavailable. The next expiry is always 24 hours after your last login, so logging in at a time of day when you are around keeps the next prompt at a convenient hour.
 
 ## Troubleshooting
 
